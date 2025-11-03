@@ -1,0 +1,118 @@
+```{r}
+#load data
+
+library(readr)
+
+# Read all four data frames
+fam64a <- read_csv("results/FAM64A.csv")
+nefl   <- read_csv("results/NEFL.csv")
+upp2   <- read_csv("results/UPP2.csv")
+s100b  <- read_csv("results/S100B.csv")
+```
+
+```{r}
+library(dplyr)
+
+fam64a <- fam64a %>%
+  mutate(label = ifelse(tolower(Interaction_Found) == "positive", 1, 0))
+
+# Repeat for others or do it in a loop
+nefl  <- nefl  %>% mutate(label = ifelse(tolower(Interaction_Found) == "positive", 1, 0))
+upp2  <- upp2  %>% mutate(label = ifelse(tolower(Interaction_Found) == "positive", 1, 0))
+s100b <- s100b %>% mutate(label = ifelse(tolower(Interaction_Found) == "positive", 1, 0))
+
+
+```
+
+
+```{r delong_auc, message=FALSE, warning=FALSE}
+# Install required package (if not already)
+if (!require("pROC")) install.packages("pROC", repos="https://cloud.r-project.org")
+
+library(pROC)
+
+
+
+# Compute ROC and AUC using DeLong's method
+roc_obj <- roc(s100b$label, s100b$contact_count, ci=TRUE, ci.method="delong")
+
+# Print summary
+roc_obj
+ci(roc_obj)
+
+# Plot ROC curve with 95% CI and diagonal reference
+plot(roc_obj, col="#1c61b6", lwd=2, main="ROC Curve with DeLong 95% CI")
+abline(a=0, b=1, lty=2, col="gray")
+
+
+
+# # DeLong's test for difference between AUCs
+# roc.test(roc_obj, roc_obj2, method="delong")
+roc_obj
+```
+
+```{r}
+
+library(tibble)
+library(readr)
+#manually assigned values :)
+roc_summary <- tribble(
+  ~Protein,  ~Metric,          ~AUC,  ~LowerCI, ~UpperCI,
+  "FAM64A",  "pTM",            0.496,   0.3017,     0.6902,
+  "FAM64A",  "ipTM",           0.5869,   0.4009,     0.7729,
+  "FAM64A",  "contact_count",  0.5668,   0.3697,     0.764,
+  "NEFL",    "pTM",            0.5523,   0.3299,     0.7746,
+  "NEFL",    "ipTM",           0.5568,   0.3469,     0.7667,
+  "NEFL",    "contact_count",  0.6955,   0.4859,     0.905,
+  "UPP2",    "pTM",            0.746,   0.4923,     0.9997,
+  "UPP2",    "ipTM",           0.6349,   0.3372,     0.9326,
+  "UPP2",    "contact_count",  0.6746,   0.3915,     0.9577,
+  "S100B",   "pTM",            0.5714,   0.2204,     0.9224,
+  "S100B",   "ipTM",           0.5816,   0.2500,     0.9133,
+  "S100B",   "contact_count",  0.5918,   0.258,      0.9257
+)
+
+write_csv(roc_summary, "results/roc_summary.csv")
+```
+
+
+```{r roc_auc_plot_thick, message=FALSE, warning=FALSE}
+library(tidyverse)
+
+# If not already loaded
+# roc_summary <- read_csv("results/roc_summary.csv")
+
+ggplot(roc_summary, aes(x = Protein, y = AUC, color = Metric, shape = Metric)) +
+  geom_point(size = 4, stroke = 1.2, position = position_dodge(width = 0.6)) +
+  geom_errorbar(aes(ymin = LowerCI, ymax = UpperCI),
+                width = 0.18,
+                linewidth = 1.2,
+                position = position_dodge(width = 0.6)) +
+  geom_text(aes(label = Metric, color = black),
+            position = position_dodge(width = 0.6),
+            vjust = -1.0,
+            size = 4,
+            fontface = "bold",
+            show.legend = FALSE) +
+  geom_hline(yintercept = 0.5, linetype = "dashed", color = "gray40", linewidth = 1) +
+  labs(
+    title = "AlphaFold Confidence Metric Performance Across Proteins",
+    subtitle = "ROC AUC values with 95% DeLong Confidence Intervals",
+    x = "Protein",
+    y = "AUC (95% CI)",
+    color = "Metric",
+    shape = "Metric"
+  ) +
+  coord_cartesian(ylim = c(0.25, 1)) +  # start y-axis at 0.25 instead of 0
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    legend.title = element_text(face = "bold"),
+    legend.text = element_text(size = 11)
+  )
+```
